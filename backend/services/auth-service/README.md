@@ -12,7 +12,7 @@ pnpm prisma migrate deploy
 pnpm start:dev
 ```
 
-From the `docker` directory, `docker compose --env-file .env up --build` starts PostgreSQL, Redis, Kafka, and the service. Never commit `.env` or real JWT/admin/Google credentials.
+From the repository-level `docker` directory, `docker compose --env-file .env up --build` starts PostgreSQL, Redis, Kafka, and the service. Never commit `.env` or real JWT/admin/Google credentials.
 
 The service uses Prisma 7 with the PostgreSQL driver adapter. `DATABASE_URL` is read by `prisma.config.ts`; the generated client is written under `src/generated` during setup/build and is ignored by Git.
 
