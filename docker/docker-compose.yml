@@ -1,0 +1,206 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: sih_postgres
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - '5432:5432'
+    volumes:
+      - sih_postgres_data:/var/lib/postgresql/data
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
+      interval: 5s
+      timeout: 5s
+      retries: 15
+
+  redis:
+    image: redis:7-alpine
+    container_name: sih_redis
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 15
+
+  kafka:
+    image: apache/kafka:4.3.1
+    container_name: sih_kafka
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      KAFKA_NODE_ID: ${KAFKA_NODE_ID}
+      KAFKA_PROCESS_ROLES: ${KAFKA_PROCESS_ROLES}
+      KAFKA_CONTROLLER_QUORUM_VOTERS: ${KAFKA_CONTROLLER_QUORUM_VOTERS}
+      KAFKA_LISTENERS: ${KAFKA_LISTENERS}
+      KAFKA_ADVERTISED_LISTENERS: ${KAFKA_ADVERTISED_LISTENERS}
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: ${KAFKA_LISTENER_SECURITY_PROTOCOL_MAP}
+      KAFKA_CONTROLLER_LISTENER_NAMES: ${KAFKA_CONTROLLER_LISTENER_NAMES}
+      KAFKA_INTER_BROKER_LISTENER_NAME: ${KAFKA_INTER_BROKER_LISTENER_NAME}
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: ${KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR}
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: ${KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR}
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: ${KAFKA_TRANSACTION_STATE_LOG_MIN_ISR}
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: ${KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS}
+    ports:
+      - '9092:9092'
+    healthcheck:
+      test: ['CMD-SHELL', '/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list >/dev/null 2>&1']
+      interval: 10s
+      timeout: 10s
+      retries: 20
+
+  auth-migrate:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.service
+      target: builder
+      args:
+        SERVICE_DIR: auth-service
+        DATABASE_URL: ${AUTH_DATABASE_URL}
+    env_file: .env
+    environment:
+      DATABASE_URL: ${AUTH_DATABASE_URL}
+    command: ['pnpm', 'prisma', 'migrate', 'deploy']
+    restart: 'no'
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  worker-migrate:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.service
+      target: builder
+      args:
+        SERVICE_DIR: worker-service
+        DATABASE_URL: ${WORKER_DATABASE_URL}
+    env_file: .env
+    environment:
+      DATABASE_URL: ${WORKER_DATABASE_URL}
+    command: ['pnpm', 'prisma', 'migrate', 'deploy']
+    restart: 'no'
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  job-migrate:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.service
+      target: builder
+      args:
+        SERVICE_DIR: job-service
+        DATABASE_URL: ${JOB_DATABASE_URL}
+    env_file: .env
+    environment:
+      DATABASE_URL: ${JOB_DATABASE_URL}
+    command: ['pnpm', 'prisma', 'migrate', 'deploy']
+    restart: 'no'
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  auth-service:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.service
+      args:
+        SERVICE_DIR: auth-service
+        DATABASE_URL: ${AUTH_DATABASE_URL}
+    container_name: sih_auth_service
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: ${AUTH_DATABASE_URL}
+      PORT: ${AUTH_PORT}
+      GRPC_PORT: ${AUTH_GRPC_PORT}
+      REDIS_URL: ${REDIS_URL}
+      KAFKA_BROKERS: ${KAFKA_BROKERS}
+    ports:
+      - '${AUTH_PORT}:3001'
+      - '${AUTH_GRPC_PORT}:50051'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      auth-migrate:
+        condition: service_completed_successfully
+
+  worker-service:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.service
+      args:
+        SERVICE_DIR: worker-service
+        DATABASE_URL: ${WORKER_DATABASE_URL}
+    container_name: sih_worker_service
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: ${WORKER_DATABASE_URL}
+      PORT: ${WORKER_PORT}
+      AUTH_GRPC_URL: ${AUTH_GRPC_URL}
+      KAFKA_BROKERS: ${KAFKA_BROKERS}
+    ports:
+      - '${WORKER_PORT}:3002'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      auth-service:
+        condition: service_started
+      worker-migrate:
+        condition: service_completed_successfully
+
+  job-service:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.service
+      args:
+        SERVICE_DIR: job-service
+        DATABASE_URL: ${JOB_DATABASE_URL}
+    container_name: sih_job_service
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: ${JOB_DATABASE_URL}
+      PORT: ${JOB_PORT}
+      AUTH_GRPC_URL: ${AUTH_GRPC_URL}
+      KAFKA_BROKERS: ${KAFKA_BROKERS}
+    ports:
+      - '${JOB_PORT}:3003'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      auth-service:
+        condition: service_started
+      job-migrate:
+        condition: service_completed_successfully
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: sih_ollama
+    profiles: ['ai']
+    restart: unless-stopped
+    ports:
+      - '11434:11434'
+    volumes:
+      - sih_ollama_data:/root/.ollama
+
+volumes:
+  sih_postgres_data:
+  sih_ollama_data:

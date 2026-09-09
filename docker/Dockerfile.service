@@ -1,0 +1,31 @@
+FROM node:20-alpine AS builder
+
+ARG SERVICE_DIR
+ARG DATABASE_URL
+ENV DATABASE_URL=${DATABASE_URL}
+
+WORKDIR /app
+RUN npm install -g pnpm
+
+COPY backend/services/${SERVICE_DIR}/package.json backend/services/${SERVICE_DIR}/pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
+
+COPY backend/services/${SERVICE_DIR}/ ./
+RUN pnpm prisma generate
+RUN pnpm run build
+
+FROM node:20-alpine AS runner
+
+ARG SERVICE_DIR
+WORKDIR /app
+ENV NODE_ENV=production
+RUN npm install -g pnpm
+
+COPY services/${SERVICE_DIR}/package.json services/${SERVICE_DIR}/pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile --prod
+
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/proto ./proto
+COPY --from=builder /app/prisma ./prisma
+
+CMD ["node", "dist/main"]
