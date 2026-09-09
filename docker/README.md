@@ -9,18 +9,17 @@ cd docker
 docker compose --env-file .env up --build
 ```
 
-This starts PostgreSQL, Redis, Kafka, auth-service, worker-service, and job-service. The database init script creates the auth, worker, and job databases on the first PostgreSQL volume initialization.
+This starts PostgreSQL, Redis, Kafka, auth-service, worker-service, job-service, and booking-service. The database init script creates the auth, worker, job, and booking databases on the first PostgreSQL volume initialization.
 
 ## Start Ollama too
 
 ```bash
 # pull models into your host's Ollama registry (mapped to container's /root/.ollama)
 docker compose --env-file .env --profile ai up --build
-docker cp ~/.ollama/. sih_ollama:/root/.ollama  # copy local models
-docker exec -it sih_ollama ollama pull gemma3:4b  # or pull inside container
+docker exec -it sih_ollama ollama pull gemma3:4b
 ```
 
-The Language Bridge should use `OLLAMA_BASE_URL=http://ollama:11434` and `OLLAMA_MODEL` from the shared environment.
+The AI profile starts Ollama and the authenticated Language Bridge. Pull the configured model before calling the Language Bridge. It uses `OLLAMA_BASE_URL=http://ollama:11434` and `OLLAMA_MODEL` from the shared environment.
 
 ## Host ports
 
@@ -28,6 +27,8 @@ The Language Bridge should use `OLLAMA_BASE_URL=http://ollama:11434` and `OLLAMA
 - Auth gRPC: `50051`
 - Worker HTTP: `3002`
 - Job HTTP: `3003`
+- Booking HTTP: `3004`
+- Language Bridge HTTP: `3005` (AI profile)
 - PostgreSQL: `5432`
 - Redis: `6379`
 - Kafka: `9092`

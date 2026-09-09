@@ -108,6 +108,23 @@ services:
       postgres:
         condition: service_healthy
 
+  booking-migrate:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.service
+      target: builder
+      args:
+        SERVICE_DIR: booking-service
+        DATABASE_URL: ${BOOKING_DATABASE_URL}
+    env_file: .env
+    environment:
+      DATABASE_URL: ${BOOKING_DATABASE_URL}
+    command: ['pnpm', 'prisma', 'migrate', 'deploy']
+    restart: 'no'
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   auth-service:
     build:
       context: ..
@@ -191,6 +208,37 @@ services:
       job-migrate:
         condition: service_completed_successfully
 
+  booking-service:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.service
+      args:
+        SERVICE_DIR: booking-service
+        DATABASE_URL: ${BOOKING_DATABASE_URL}
+    container_name: sih_booking_service
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: ${BOOKING_DATABASE_URL}
+      PORT: ${BOOKING_PORT}
+      AUTH_GRPC_URL: ${AUTH_GRPC_URL}
+      JOB_SERVICE_URL: ${JOB_SERVICE_URL}
+      KAFKA_BROKERS: ${KAFKA_BROKERS}
+      PAYMENT_WEBHOOK_SECRET: ${PAYMENT_WEBHOOK_SECRET}
+    ports:
+      - '${BOOKING_PORT}:3004'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      auth-service:
+        condition: service_started
+      job-service:
+        condition: service_started
+      booking-migrate:
+        condition: service_completed_successfully
+
   ollama:
     image: ollama/ollama:latest
     container_name: sih_ollama
@@ -200,6 +248,30 @@ services:
       - '11434:11434'
     volumes:
       - sih_ollama_data:/root/.ollama
+
+  language-service:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.service
+      args:
+        SERVICE_DIR: language-service
+    container_name: sih_language_service
+    profiles: ['ai']
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      PORT: ${LANGUAGE_PORT}
+      AUTH_GRPC_URL: ${AUTH_GRPC_URL}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL}
+      OLLAMA_MODEL: ${OLLAMA_MODEL}
+      OLLAMA_TIMEOUT_MS: ${OLLAMA_TIMEOUT_MS}
+    ports:
+      - '${LANGUAGE_PORT}:3005'
+    depends_on:
+      auth-service:
+        condition: service_started
+      ollama:
+        condition: service_started
 
 volumes:
   sih_postgres_data:

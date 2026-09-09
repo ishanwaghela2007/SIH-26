@@ -1,0 +1,75 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum BookingStatus {
+  PENDING_PAYMENT
+  CONFIRMED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  DISPUTED
+}
+
+enum PaymentStatus {
+  REQUIRES_ACTION
+  PROCESSING
+  SUCCEEDED
+  FAILED
+  REFUNDED
+}
+
+model Booking {
+  id              String          @id @default(uuid())
+  jobId           String          @unique
+  customerId      String
+  workerId        String
+  amountMinor     Int
+  currency        String          @default("INR")
+  status          BookingStatus   @default(PENDING_PAYMENT)
+  scheduledStart  DateTime?
+  scheduledEnd    DateTime?
+  payments        Payment[]
+  statusHistory   BookingStatusEvent[]
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@index([customerId, status])
+  @@index([workerId, status])
+  @@index([status, scheduledStart])
+}
+
+model Payment {
+  id                String        @id @default(uuid())
+  bookingId         String
+  provider          String        @default("external")
+  providerReference String?
+  idempotencyKey    String        @unique
+  amountMinor       Int
+  currency          String
+  status            PaymentStatus @default(REQUIRES_ACTION)
+  booking           Booking       @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  @@index([bookingId, status])
+  @@index([providerReference])
+}
+
+model BookingStatusEvent {
+  id        String        @id @default(uuid())
+  bookingId String
+  from      BookingStatus?
+  to        BookingStatus
+  actorId   String
+  reason    String?
+  booking   Booking       @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  createdAt DateTime      @default(now())
+
+  @@index([bookingId, createdAt])
+}
