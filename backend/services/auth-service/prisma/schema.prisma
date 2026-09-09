@@ -1,0 +1,152 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  CUSTOMER
+  WORKER
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  PENDING
+}
+
+enum AuthProvider {
+  LOCAL
+  GOOGLE
+}
+
+enum RefreshTokenStatus {
+  ACTIVE
+  ROTATED
+  REVOKED
+}
+
+enum OneTimeTokenStatus {
+  ACTIVE
+  USED
+  REVOKED
+}
+
+model User {
+  id                String         @id @default(uuid())
+  email             String         @unique
+  name              String
+  passwordHash      String?
+  role              UserRole       @default(CUSTOMER)
+  status            UserStatus     @default(ACTIVE)
+  emailVerifiedAt   DateTime?
+  preferredLanguage String         @default("en")
+
+  identities        AuthIdentity[]
+  refreshTokens     RefreshToken[]
+  emailVerificationTokens EmailVerificationToken[]
+  passwordResetTokens PasswordResetToken[]
+  auditEvents       AuditEvent[]
+
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  @@index([role])
+  @@index([status])
+}
+
+model AuthIdentity {
+  id         String       @id @default(uuid())
+  userId     String
+  provider   AuthProvider
+  providerId String
+
+  user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt  DateTime     @default(now())
+
+  @@unique([provider, providerId])
+  @@index([userId])
+}
+
+model RefreshToken {
+  id          String             @id @default(uuid())
+  userId      String
+  selector    String             @unique
+  familyId    String
+  tokenHash   String
+  status      RefreshTokenStatus @default(ACTIVE)
+  expiresAt   DateTime
+  rotatedAt   DateTime?
+  revokedAt   DateTime?
+  replacedById String?
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([familyId])
+  @@index([userId, status])
+}
+
+model EmailVerificationToken {
+  id        String             @id @default(uuid())
+  userId    String
+  selector  String             @unique
+  tokenHash String
+  status    OneTimeTokenStatus @default(ACTIVE)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime           @default(now())
+
+  user      User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+}
+
+model PasswordResetToken {
+  id        String             @id @default(uuid())
+  userId    String
+  selector  String             @unique
+  tokenHash String
+  status    OneTimeTokenStatus @default(ACTIVE)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime           @default(now())
+
+  user      User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+}
+
+model AuditEvent {
+  id        String   @id @default(uuid())
+  userId    String?
+  type      String
+  ip        String?
+  userAgent String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([type, createdAt])
+}
+
+model OutboxEvent {
+  id          String    @id @default(uuid())
+  topic       String
+  key         String?
+  payload     Json
+  createdAt   DateTime  @default(now())
+  publishedAt DateTime?
+  attempts    Int       @default(0)
+
+  @@index([publishedAt, createdAt])
+}

@@ -1,0 +1,62 @@
+syntax = "proto3";
+
+package auth;
+
+service AuthService {
+  rpc ValidateToken(ValidateTokenRequest) returns (ValidateTokenResponse);
+  rpc GetUser(GetUserRequest) returns (UserResponse);
+  rpc GetUserRole(GetUserRequest) returns (GetUserRoleResponse);
+  rpc Login(LoginRequest) returns (AuthResponse);
+  rpc GoogleLogin(GoogleLoginRequest) returns (AuthResponse);
+  rpc RefreshToken(RefreshTokenRequest) returns (AuthResponse);
+  rpc RevokeToken(RevokeTokenRequest) returns (OperationResponse);
+}
+
+message ValidateTokenRequest {
+  string access_token = 1;
+}
+
+message ValidateTokenResponse {
+  bool valid = 1;
+  string user_id = 2;
+  string email = 3;
+  string role = 4;
+}
+
+message GetUserRequest {
+  string user_id = 1;
+}
+
+message GetUserRoleResponse { string user_id = 1; string role = 2; }
+
+message LoginRequest {
+  string email = 1;
+  string password = 2;
+  string ip = 3;
+  string user_agent = 4;
+}
+
+message GoogleLoginRequest {
+  string id_token = 1;
+  string ip = 2;
+  string user_agent = 3;
+}
+
+message RefreshTokenRequest { string refresh_token = 1; string ip = 2; string user_agent = 3; }
+message RevokeTokenRequest { string user_id = 1; string refresh_token = 2; string reason = 3; }
+message OperationResponse { bool success = 1; string message = 2; }
+
+message UserResponse {
+  string id = 1;
+  string email = 2;
+  string name = 3;
+  string role = 4;
+  string preferred_language = 5;
+  string status = 6;
+}
+
+message AuthResponse {
+  string access_token = 1;
+  string refresh_token = 2;
+  UserResponse user = 3;
+}
