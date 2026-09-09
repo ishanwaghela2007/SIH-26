@@ -133,12 +133,14 @@ export class AuthGrpcController {
   }
 
   @GrpcMethod('AuthService', 'ValidateToken')
-  async validateToken(data: { access_token: string }) {
+  async validateToken(data: { access_token?: string; accessToken?: string }) {
     try {
-      const { claims } = await this.auth.validateAccessToken(data.access_token);
+      const accessToken = data.accessToken ?? data.access_token;
+      if (!accessToken) throw new Error('MISSING_ACCESS_TOKEN');
+      const { claims } = await this.auth.validateAccessToken(accessToken);
       return {
         valid: true,
-        user_id: claims.sub,
+        userId: claims.sub,
         email: claims.email,
         role: claims.role,
       };

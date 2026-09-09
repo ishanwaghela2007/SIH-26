@@ -27,6 +27,6 @@ import { RolesGuard } from './roles.guard';
     ]),
   ],
   providers: [AuthClientService, AuthGuard, RolesGuard],
-  exports: [AuthGuard, RolesGuard],
+  exports: [AuthClientService, AuthGuard, RolesGuard],
 })
 export class AuthModule {}

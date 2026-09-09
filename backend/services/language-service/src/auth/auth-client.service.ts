@@ -1,14 +1,13 @@
 import { Inject, Injectable, OnModuleInit } from '@nestjs/common';
 import { ClientGrpc } from '@nestjs/microservices';
 import { firstValueFrom } from 'rxjs';
-import { AUTH_PACKAGE } from './auth.module';
 import { AuthClient, AuthenticatedUser } from './auth.types';
 
 @Injectable()
 export class AuthClientService implements OnModuleInit {
   private authClient!: AuthClient;
 
-  constructor(@Inject(AUTH_PACKAGE) private readonly grpcClient: ClientGrpc) {}
+  constructor(@Inject('AUTH_PACKAGE') private readonly grpcClient: ClientGrpc) {}
 
   onModuleInit(): void {
     this.authClient = this.grpcClient.getService<AuthClient>('AuthService');
@@ -16,13 +15,14 @@ export class AuthClientService implements OnModuleInit {
 
   async validateToken(accessToken: string): Promise<AuthenticatedUser> {
     const response = await firstValueFrom(
-      this.authClient.validateToken({ access_token: accessToken }),
+      this.authClient.validateToken({ accessToken }),
     );
-    if (!response.valid || !response.user_id || !response.role) {
+    const userId = response.userId ?? response.user_id;
+    if (!response.valid || !userId || !response.role) {
       throw new Error('INVALID_ACCESS_TOKEN');
     }
     return {
-      userId: response.user_id,
+      userId,
       email: response.email,
       role: response.role,
     };

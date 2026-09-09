@@ -6,13 +6,14 @@ export interface AuthenticatedUser {
 
 export interface ValidateTokenResponse {
   valid: boolean;
-  user_id: string;
+  userId?: string;
+  user_id?: string;
   email: string;
   role: string;
 }
 
 export interface AuthClient {
   validateToken(request: {
-    access_token: string;
+    accessToken: string;
   }): import('rxjs').Observable<ValidateTokenResponse>;
 }
