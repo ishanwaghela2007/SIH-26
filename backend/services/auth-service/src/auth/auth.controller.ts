@@ -7,6 +7,7 @@ import {
   Req,
   HttpCode,
   HttpStatus,
+  Patch,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
@@ -21,6 +22,7 @@ import {
   TokenDto,
 } from './dto/token.dto';
 import { GoogleIdTokenDto } from './dto/google.dto';
+import { UpdateProfileDto } from './dto/profile.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -111,6 +113,19 @@ export class AuthController {
   @Get('me')
   me(@Req() req: Request & { user: { userId: string } }) {
     return this.authService.getUser(req.user.userId);
+  }
+
+  @UseGuards(JwtGuard)
+  @Patch('me')
+  updateMe(
+    @Body() dto: UpdateProfileDto,
+    @Req() req: Request & { user: { userId: string } },
+  ) {
+    return this.authService.updateProfile(
+      req.user.userId,
+      dto,
+      this.context(req),
+    );
   }
 
   private context(req: Request) {

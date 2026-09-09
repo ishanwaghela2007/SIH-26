@@ -29,8 +29,25 @@ The service uses Prisma 7 with the PostgreSQL driver adapter. `DATABASE_URL` is 
 - `POST /auth/password/forgot`
 - `POST /auth/password/reset`
 - `GET /auth/me` (Bearer access token)
+- `PATCH /auth/me` (Bearer access token; update name/language)
+
+Admin-only user administration is exposed separately from public auth:
+
+- `GET /admin/users`
+- `PATCH /admin/users/:userId/status`
+- `PATCH /admin/users/:userId/role`
+- `POST /admin/users/:userId/revoke-sessions`
+
+Operational endpoints:
+
+- `GET /health/live` (process liveness)
+- `GET /health/ready` (PostgreSQL, Redis, and Kafka readiness)
 
 Browser OAuth callbacks are intentionally not enabled in this service; mobile clients send a Google ID token to the server for verification. A browser flow can be added at the BFF boundary with state/CSRF handling.
+
+## Platform boundaries
+
+The SIH solution has separate Admin, Employee/Worker, and End User portals, with a Language Bridge around the cooperative marketplace. This service owns identity, roles, account status, admin bootstrap, sessions, and authorization checks. Job matching, wage rules, bookings, payments, worker onboarding details, and translation belong in their respective services and should consume this service through gRPC or validated access tokens.
 
 ## Internal gRPC API
 

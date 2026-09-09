@@ -7,6 +7,8 @@ import { PrismaModule } from './prisma/prisma.module';
 import { SecurityModule } from './security/security.module';
 import { EventsModule } from './events/events.module';
 import { validateEnvironment } from './config/config';
+import { AdminModule } from './admin/admin.module';
+import { HealthModule } from './health/health.module';
 
 @Module({
   imports: [
@@ -19,6 +21,8 @@ import { validateEnvironment } from './config/config';
     UsersModule,
     SecurityModule,
     EventsModule,
+    AdminModule,
+    HealthModule,
   ],
 })
 export class AppModule {}

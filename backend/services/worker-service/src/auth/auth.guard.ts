@@ -1,0 +1,40 @@
+import {
+  CanActivate,
+  ExecutionContext,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { Request } from 'express';
+
+import { AuthClientService } from './auth-client.service';
+import { AuthenticatedUser } from './auth.types';
+
+type RequestWithUser = Request & { user?: AuthenticatedUser };
+
+@Injectable()
+export class AuthGuard implements CanActivate {
+  constructor(private readonly auth: AuthClientService) {}
+
+  async canActivate(context: ExecutionContext) {
+    const request = context.switchToHttp().getRequest<RequestWithUser>();
+    const header = request.get('authorization');
+    const token = header?.startsWith('Bearer ')
+      ? header.slice('Bearer '.length).trim()
+      : '';
+    if (!token) throw new UnauthorizedException('INVALID_ACCESS_TOKEN');
+
+    try {
+      const result = await this.auth.validateToken(token);
+      if (!result.valid || !result.user_id || !result.role)
+        throw new UnauthorizedException('INVALID_ACCESS_TOKEN');
+      request.user = {
+        userId: result.user_id,
+        email: result.email,
+        role: result.role,
+      };
+      return true;
+    } catch {
+      throw new UnauthorizedException('INVALID_ACCESS_TOKEN');
+    }
+  }
+}

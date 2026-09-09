@@ -19,6 +19,7 @@ import { Prisma } from '../generated/prisma/client';
 import { getNumber } from '../config/config';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
+import { UpdateProfileDto } from './dto/profile.dto';
 
 export type RequestContext = { ip?: string; userAgent?: string };
 type PrismaExecutor = Prisma.TransactionClient | PrismaService;
@@ -730,5 +731,34 @@ export class AuthService {
 
   async getUser(id: string) {
     return this.publicUser(await this.users.findById(id));
+  }
+
+  async updateProfile(
+    userId: string,
+    dto: UpdateProfileDto,
+    context?: RequestContext,
+  ) {
+    const data = {
+      ...(dto.name !== undefined ? { name: dto.name.trim() } : {}),
+      ...(dto.preferredLanguage !== undefined
+        ? { preferredLanguage: dto.preferredLanguage }
+        : {}),
+    };
+    if (!Object.keys(data).length) return this.getUser(userId);
+    if ('name' in data && !data.name)
+      throw new BadRequestException('INVALID_NAME');
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const user = await tx.user.update({ where: { id: userId }, data });
+      await this.audit('USER_PROFILE_UPDATED', userId, context, undefined, tx);
+      await this.outbox.enqueue(
+        'auth.user.updated',
+        { userId, fields: Object.keys(data) },
+        userId,
+        tx,
+      );
+      return user;
+    });
+    return { user: this.publicUser(result) };
   }
 }

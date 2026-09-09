@@ -1,0 +1,52 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum JobStatus {
+  OPEN
+  ASSIGNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  DISPUTED
+}
+
+model Job {
+  id              String      @id @default(uuid())
+  customerId      String
+  assignedWorkerId String?
+  title           String
+  description     String
+  serviceDomain   String
+  district        String
+  language        String?
+  scheduledStart  DateTime?
+  scheduledEnd    DateTime?
+  budgetMin       Int?
+  budgetMax       Int?
+  latitude        Float?
+  longitude       Float?
+  status          JobStatus   @default(OPEN)
+  assignments     JobAssignment[]
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@index([customerId, status])
+  @@index([status, serviceDomain, district])
+  @@index([assignedWorkerId, status])
+}
+
+model JobAssignment {
+  id         String   @id @default(uuid())
+  jobId      String   @unique
+  workerId   String
+  acceptedAt DateTime @default(now())
+  job        Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([workerId, acceptedAt])
+}

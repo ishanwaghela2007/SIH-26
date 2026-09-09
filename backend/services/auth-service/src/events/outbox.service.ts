@@ -17,6 +17,7 @@ export class OutboxService implements OnModuleInit, OnModuleDestroy {
   private readonly producer?: Producer;
   private timer?: NodeJS.Timeout;
   private publishing = false;
+  private connected = false;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -37,11 +38,18 @@ export class OutboxService implements OnModuleInit, OnModuleDestroy {
     if (!this.producer) return;
     await this.producer
       .connect()
+      .then(() => {
+        this.connected = true;
+      })
       .catch((error: Error) =>
         this.logger.warn(`Kafka unavailable: ${error.message}`),
       );
     this.timer = setInterval(() => void this.publishPending(), 5000);
     this.timer.unref();
+  }
+
+  isReady() {
+    return Boolean(this.producer && this.connected);
   }
 
   async enqueue(
@@ -95,6 +103,7 @@ export class OutboxService implements OnModuleInit, OnModuleDestroy {
 
   async onModuleDestroy() {
     if (this.timer) clearInterval(this.timer);
+    this.connected = false;
     await this.producer?.disconnect();
   }
 }
