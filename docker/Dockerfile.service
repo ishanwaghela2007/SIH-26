@@ -1,31 +1,37 @@
 FROM node:20-alpine AS builder
 
 ARG SERVICE_DIR
-ARG DATABASE_URL
-ENV DATABASE_URL=${DATABASE_URL}
+ARG DATABASE_URL="postgresql://placeholder:placeholder@localhost:5432/placeholder"
+ENV DATABASE_URL=${DATABASE_URL:-postgresql://placeholder:placeholder@localhost:5432/placeholder}
 
 WORKDIR /app
-RUN npm install -g pnpm
+RUN apk add --no-cache openssl libc6-compat python3 make g++
+RUN npm install -g pnpm@9
 
 COPY backend/services/${SERVICE_DIR}/package.json backend/services/${SERVICE_DIR}/pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
 
 COPY backend/services/${SERVICE_DIR}/ ./
-RUN pnpm prisma generate
+RUN mkdir -p /app/proto /app/prisma
+RUN if [ -f "prisma/schema.prisma" ]; then pnpm prisma generate; fi
 RUN pnpm run build
+
+FROM builder AS prod-deps
+RUN pnpm prune --prod
 
 FROM node:20-alpine AS runner
 
 ARG SERVICE_DIR
 WORKDIR /app
 ENV NODE_ENV=production
-RUN npm install -g pnpm
+RUN apk add --no-cache openssl libc6-compat
 
-COPY backend/services/${SERVICE_DIR}/package.json backend/services/${SERVICE_DIR}/pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile --prod
-
+COPY --from=prod-deps /app/node_modules ./node_modules
+COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/proto ./proto
 COPY --from=builder /app/prisma ./prisma
 
 CMD ["node", "dist/main"]
+
+
